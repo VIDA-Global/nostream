@@ -15,7 +15,12 @@ payments:
       amount: 1000000
       whitelists:
         pubkeys:
-        - 42b3db1ca9f73ea861cca1f5a9f74dadf97b6ff539cdf722ccae16119907dfe6
+          - replace-with-your-pubkey-in-hex
+          # Allow the following Zap providers:
+          # LightningTipBot by Calle
+          - "fcd720c38d9ee337188f47aac845dcd8f590ccdb4a928b76dde18187b4c9d37d"
+          # Vida Global Zaps
+          - "42b3db1ca9f73ea861cca1f5a9f74dadf97b6ff539cdf722ccae16119907dfe6"
     publication:
     - enabled: true
       descripton: Per event fee charged per public key in msats (1000 msats = 1 satoshi)
@@ -50,10 +55,7 @@ paymentsProcessors:
     callbackBaseURL: https://nostream.your-domain.com/callbacks/lnbits
 network:
   maxPayloadSize: 524288
-  # Comment the next line if using CloudFlare proxy
   remoteIpHeader: x-forwarded-for
-  # Uncomment the next line if using CloudFlare proxy
-  # remoteIpHeader: cf-connecting-ip
 workers:
   count: 16
 mirroring:
@@ -62,9 +64,9 @@ limits:
   invoice:
     rateLimits:
     - period: 60000
-      rate: 12
+      rate: 6
     - period: 3600000
-      rate: 30
+      rate: 16
     ipWhitelist:
     - "::1"
     - "10.10.10.1"
@@ -75,6 +77,8 @@ limits:
       rate: 12
     - period: 60000
       rate: 48
+    - period: 3600000
+      rate: 300
     ipWhitelist:
     - "::1"
     - "10.10.10.1"
@@ -126,6 +130,14 @@ limits:
       - 42
       period: 60000
       rate: 12
+    - description: 360 events/hour for event kinds 1, 2, 4 and 42
+      kinds:
+      - 1
+      - 2
+      - 4
+      - 42
+      period: 3600000
+      rate: 360
     - description: 30 events/min for event kind ranges 5-7 and 43-49
       kinds:
       - - 5
@@ -152,6 +164,9 @@ limits:
     - description: 720 events/hour for all events
       period: 3600000
       rate: 720
+    - description: 2880 events/day for all events
+      period: 86400000
+      rate: 2880
     whitelists:
       pubkeys: []
       ipAddresses:

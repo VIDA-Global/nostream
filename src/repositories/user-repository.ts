@@ -34,6 +34,11 @@ export class UserRepository implements IUserRepository {
       console.log(`PubKey ${pubkey} is blocked`);
       return;
     }
+    // No remote pubkey checking enabled, perform local lookup.
+    else {
+      const [dbuser] = await client<DBUser>('users')
+        .where('pubkey', toBuffer(pubkey))
+        .select()
 
     //Check if user is stored locally already
     const [dbuser] = await client<DBUser>('users')

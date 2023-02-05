@@ -23,6 +23,7 @@ export class EventMessageHandler implements IMessageHandler {
     protected readonly userRepository: IUserRepository,
     private readonly settings: () => Settings,
     private readonly slidingWindowRateLimiter: Factory<IRateLimiter>,
+    private httpClient: AxiosInstance,
   ) {}
 
   public async handleMessage(message: IncomingEventMessage): Promise<void> {
@@ -123,7 +124,6 @@ export class EventMessageHandler implements IMessageHandler {
         debug('Unable to send event %s callback to remote server: %s', event.id, error)
       }
     }
-
   }
 
   protected canAcceptEvent(event: Event): string | undefined {
