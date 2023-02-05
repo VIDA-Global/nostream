@@ -15,6 +15,15 @@ payments:
       whitelists:
         pubkeys:
         - replace-with-your-pubkey-in-hex
+webhooks:
+  fetchUsers: true
+  eventChecks: true
+  eventCallbacks: true
+  endpoints:
+    baseURL: https://api.vida.dev/
+    fetchUser: nostream/fetchUser
+    eventCheck: nostream/eventCheck
+    eventCallback: nostream/eventCallback
 paymentsProcessors:
   zebedee:
     baseURL: https://api.zebedee.io/

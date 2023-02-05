@@ -12,6 +12,7 @@ import { IRateLimiter } from '../@types/utils'
 import { IUserRepository } from '../@types/repositories'
 import { IWebSocketAdapter } from '../@types/adapters'
 import { WebSocketAdapterEvent } from '../constants/adapter'
+import { AxiosInstance } from 'axios'
 
 const debug = createLogger('event-message-handler')
 
@@ -22,6 +23,7 @@ export class EventMessageHandler implements IMessageHandler {
     protected readonly userRepository: IUserRepository,
     private readonly settings: () => Settings,
     private readonly slidingWindowRateLimiter: Factory<IRateLimiter>,
+    private httpClient: AxiosInstance,
   ) {}
 
   public async handleMessage(message: IncomingEventMessage): Promise<void> {
@@ -64,6 +66,26 @@ export class EventMessageHandler implements IMessageHandler {
       return
     }
 
+    // Remote Event check webhook
+    if(this.settings().webhooks?.eventChecks && (this.settings().webhooks?.endpoints?.baseUrl && this.settings().webhooks?.endpoints?.eventCheck)) {
+      try {
+        const response = await this.httpClient.post(`${this.settings().webhooks?.endpoints?.baseUrl}${this.settings().webhooks?.endpoints?.eventCheck}`, event, {
+          maxRedirects: 1,
+        })
+        console.log(`Sent remote event for processing::`);
+        console.log(response.data);
+        if(!response.data.success) {
+          debug('event %s rejected: %s', event.id, response.data.reason)
+          this.webSocket.emit(WebSocketAdapterEvent.Message, createCommandResult(event.id, false, response.data.reason))
+          return
+        }
+        
+      } catch (error) {
+        debug('Unable to check event %s with remote server: %s', event.id, error)
+        throw error
+      }
+    }
+
     const strategy = this.strategyFactory([event, this.webSocket])
 
     if (typeof strategy?.execute !== 'function') {
@@ -76,6 +98,22 @@ export class EventMessageHandler implements IMessageHandler {
     } catch (error) {
       console.error('error handling message', message, error)
       this.webSocket.emit(WebSocketAdapterEvent.Message, createCommandResult(event.id, false, 'error: unable to process event'))
+    }
+
+    // Event success callback webhooks
+    if(this.settings().webhooks?.eventCallbacks && (this.settings().webhooks?.endpoints?.baseUrl && this.settings().webhooks?.endpoints?.eventCallback)) {
+      try {
+        const response = await this.httpClient.post(`${this.settings().webhooks?.endpoints?.baseUrl}${this.settings().webhooks?.endpoints?.eventCallback}`, event, {
+          maxRedirects: 1,
+        })
+        console.log(`Sent remote event callback::`);
+        console.log(response.data);
+        if(!response.data.success) {
+          debug('event %s callback rejected: %s', event.id, response.data.reason)          
+        }
+      } catch (error) {
+        debug('Unable to send event %s callback to remote server: %s', event.id, error)
+      }
     }
   }
 
