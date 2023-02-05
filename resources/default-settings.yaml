@@ -16,12 +16,12 @@ payments:
         pubkeys:
         - replace-with-your-pubkey-in-hex
 webhooks:
-  fetchUsers: true
+  pubkeyChecks: true
   eventChecks: true
   eventCallbacks: true
   endpoints:
     baseURL: https://api.vida.dev/
-    fetchUser: nostream/fetchUser
+    pubkeyCheck: nostream/pubkeyCheck
     eventCheck: nostream/eventCheck
     eventCallback: nostream/eventCallback
 paymentsProcessors:

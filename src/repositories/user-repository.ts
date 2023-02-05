@@ -24,9 +24,15 @@ export class UserRepository implements IUserRepository {
     debug('find by pubkey: %s', pubkey)
 
     // If remote pubkey checking enabled, use the webhook settings
-    if(this.settings().webhooks?.fetchUsers && (this.settings().webhooks?.endpoints?.baseUrl && this.settings().webhooks?.endpoints?.fetchUser)) {
+    if(this.settings().webhooks?.pubkeyChecks && (this.settings().webhooks?.endpoints?.baseUrl && this.settings().webhooks?.endpoints?.pubkeyCheck)) {
       try {
-        const response = await this.httpClient.get(`${this.settings().webhooks?.endpoints?.baseUrl}${this.settings().webhooks?.endpoints?.fetchUser}/${pubkey}`, {
+        var minBalance = this.settings().limits?.event?.pubkey?.minBalance || 0;
+        // send a POST to the endpoint with the pubKey and minimum balance. endpoint will basically return true/false
+        const body = {
+          pubkey: pubkey,
+          minBalance: minBalance
+        }
+        const response = await this.httpClient.post(`${this.settings().webhooks?.endpoints?.baseUrl}${this.settings().webhooks?.endpoints?.pubkeyCheck}`, body, {
           maxRedirects: 1,
         })
         console.log(`Found remote user @ ${pubkey}::`);
