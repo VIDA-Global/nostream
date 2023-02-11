@@ -1,6 +1,6 @@
 info:
-  relay_url: wss://brandon.fwdnetworks.com
-  name: brandon.fwdnetworks.com
+  relay_url: wss://nostr01.vida.dev
+  name: nostr01.vida.dev  
   description: Vida Nostream Relay.
   pubkey: 42b3db1ca9f73ea861cca1f5a9f74dadf97b6ff539cdf722ccae16119907dfe6
   contact: team@vida.live
@@ -32,7 +32,7 @@ webhooks:
   eventChecks: false
   eventCallbacks: false
   endpoints:
-    baseURL: https://brandon.fwdnetworks.com/
+    baseURL: https://api.vida.dev/
     pubkeyCheck: nostream/pubkeyAdmit
     eventCheck: nostream/eventCheck
     topUps: nostream/topUp
@@ -40,7 +40,7 @@ webhooks:
 paymentsProcessors:
   vida:
     baseURL: https://api.vida.dev/
-    callbackBaseURL: https://brandon.fwdnetworks.com/callbacks/zebedee
+    callbackBaseURL: https://api.vida.dev/callbacks/zebedee
     ipWhitelist:
       - "3.225.112.64"
       - "::ffff:3.225.112.64"
