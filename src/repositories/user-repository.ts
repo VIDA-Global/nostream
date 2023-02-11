@@ -11,6 +11,7 @@ import { createSettings } from '../factories/settings-factory'
 import httpClient, { CreateAxiosDefaults } from 'axios'
 import { getCacheClient } from '../cache/client'
 
+
 const debug = createLogger('user-repository')
 
 export class UserRepository implements IUserRepository {
@@ -139,7 +140,11 @@ export class UserRepository implements IUserRepository {
       Generates a POST req with body:
         {
           pubkey: 'cb46e9...',  //pubkey (hex)
+<<<<<<< HEAD
           amount: 500  //mSat min required
+=======
+          minBalance: 500  //mSat min required
+>>>>>>> 33c5b8c (Adding topups, userbalance updates, fetch user from webhook, store user locally, adding per event publication fee charges)
         }
 
       Expects response:
