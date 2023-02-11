@@ -12,7 +12,7 @@ import { IRateLimiter } from '../@types/utils'
 import { IUserRepository } from '../@types/repositories'
 import { IWebSocketAdapter } from '../@types/adapters'
 import { WebSocketAdapterEvent } from '../constants/adapter'
-import { AxiosInstance } from 'axios'
+import httpClient, { CreateAxiosDefaults } from 'axios'
 
 const debug = createLogger('event-message-handler')
 
@@ -23,7 +23,6 @@ export class EventMessageHandler implements IMessageHandler {
     protected readonly userRepository: IUserRepository,
     private readonly settings: () => Settings,
     private readonly slidingWindowRateLimiter: Factory<IRateLimiter>,
-    private httpClient: AxiosInstance,
   ) {}
 
   public async handleMessage(message: IncomingEventMessage): Promise<void> {
@@ -67,9 +66,10 @@ export class EventMessageHandler implements IMessageHandler {
     }
 
     // Remote Event check webhook
-    if(this.settings().webhooks?.eventChecks && (this.settings().webhooks?.endpoints?.baseUrl && this.settings().webhooks?.endpoints?.eventCheck)) {
+    if(this.settings().webhooks?.eventChecks && (this.settings().webhooks?.endpoints?.baseURL && this.settings().webhooks?.endpoints?.eventCheck)) {
+      console.log('Trying remove event check from webhook')
       try {
-        const response = await this.httpClient.post(`${this.settings().webhooks?.endpoints?.baseUrl}${this.settings().webhooks?.endpoints?.eventCheck}`, event, {
+        const response = await httpClient.post(`${this.settings().webhooks?.endpoints?.baseURL}${this.settings().webhooks?.endpoints?.eventCheck}`, event, {
           maxRedirects: 1,
         })
         console.log(`Sent remote event for processing::`);
@@ -93,6 +93,14 @@ export class EventMessageHandler implements IMessageHandler {
       return
     }
 
+    if (this.settings().payments?.feeSchedules?.publication[0].enabled) {
+      //If we're charging for publication, decrement from user balance
+      console.log('Charging a publication fee')
+      var publicationFee = this.settings().payments?.feeSchedules?.publication[0].amount;
+      console.log(`Publication Fee is ${publicationFee}`)
+      await this.userRepository.updateUserBalance(event.pubkey, publicationFee, 'decrement')
+    } 
+
     try {
       await strategy.execute(event)
     } catch (error) {
@@ -101,9 +109,9 @@ export class EventMessageHandler implements IMessageHandler {
     }
 
     // Event success callback webhooks
-    if(this.settings().webhooks?.eventCallbacks && (this.settings().webhooks?.endpoints?.baseUrl && this.settings().webhooks?.endpoints?.eventCallback)) {
+    if(this.settings().webhooks?.eventCallbacks && (this.settings().webhooks?.endpoints?.baseURL && this.settings().webhooks?.endpoints?.eventCallback)) {
       try {
-        const response = await this.httpClient.post(`${this.settings().webhooks?.endpoints?.baseUrl}${this.settings().webhooks?.endpoints?.eventCallback}`, event, {
+        const response = await httpClient.post(`${this.settings().webhooks?.endpoints?.baseURL}${this.settings().webhooks?.endpoints?.eventCallback}`, event, {
           maxRedirects: 1,
         })
         console.log(`Sent remote event callback::`);
@@ -115,6 +123,7 @@ export class EventMessageHandler implements IMessageHandler {
         debug('Unable to send event %s callback to remote server: %s', event.id, error)
       }
     }
+
   }
 
   protected canAcceptEvent(event: Event): string | undefined {
@@ -300,7 +309,19 @@ export class EventMessageHandler implements IMessageHandler {
     // TODO: use cache
     const user = await this.userRepository.findByPubkey(event.pubkey)
     if (!user || !user.isAdmitted) {
+      console.log('user is blocked');
       return 'blocked: pubkey not admitted'
+    }
+
+    if (currentSettings.payments?.feeSchedules?.publication[0].enabled && user.balance < currentSettings.payments?.feeSchedules?.publication[0].amount) {
+      if (currentSettings.payments?.feeSchedules?.topUp[0].enabled) {
+        var topUp = await this.userRepository.topUpPubkey(event.pubkey);
+        if (topUp) {
+          //Successfully topped up key
+          return
+        }
+      } 
+      return 'blocked: insufficient balance';
     }
 
     const minBalance = currentSettings.limits?.event?.pubkey?.minBalance ?? 0n

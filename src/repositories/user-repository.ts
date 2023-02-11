@@ -4,55 +4,69 @@ import { DatabaseClient, Pubkey } from '../@types/base'
 import { DBUser, User } from '../@types/user'
 import { fromDBUser, toBuffer } from '../utils/transform'
 import { createLogger } from '../factories/logger-factory'
+import { Factory } from '../@types/base'
 import { IUserRepository } from '../@types/repositories'
 import { Settings } from '../@types/settings'
-import { AxiosInstance } from 'axios'
+import { createSettings } from '../factories/settings-factory'
+import httpClient, { CreateAxiosDefaults } from 'axios'
 
 const debug = createLogger('user-repository')
 
 export class UserRepository implements IUserRepository {
   public constructor(
     private readonly dbClient: DatabaseClient,
-    private httpClient: AxiosInstance,
-    private settings: Factory<Settings>,
+    //private httpClient?: AxiosInstance,
   ) { }
 
   public async findByPubkey(
     pubkey: Pubkey,
-    client: DatabaseClient = this.dbClient
+    client: DatabaseClient = this.dbClient,
   ): Promise<User | undefined> {
     debug('find by pubkey: %s', pubkey)
 
     // If remote pubkey checking enabled, use the webhook settings
-    if(this.settings().webhooks?.pubkeyChecks && (this.settings().webhooks?.endpoints?.baseUrl && this.settings().webhooks?.endpoints?.pubkeyCheck)) {
-      try {
-        var minBalance = this.settings().limits?.event?.pubkey?.minBalance || 0;
-        // send a POST to the endpoint with the pubKey and minimum balance. endpoint will basically return true/false
-        const body = {
-          pubkey: pubkey,
-          minBalance: minBalance
-        }
-        const response = await this.httpClient.post(`${this.settings().webhooks?.endpoints?.baseUrl}${this.settings().webhooks?.endpoints?.pubkeyCheck}`, body, {
-          maxRedirects: 1,
-        })
-        console.log(`Found remote user @ ${pubkey}::`);
-        console.log(response.data);
-        const remoteUser = response.data;
-        /*
-        Expects a response like this:
-        {
-          pubkey: pubkey,
-          isAdmitted: true,
-          balance: BigInt(20000),
-          createdAt: new Date(Date.now()),
-          updatedAt: new Date(Date.now())
-        }
-        */
-        return remoteUser;
-      } catch (error) {
-        debug(`Unable to fetch remote pubkey from webhook endpoint ${pubkey}. Reason:`, error)
-        throw error
+    console.log(`Checking for ${pubkey}`)
+    //console.log(this.settings())
+
+    //Check if user is stored locally already
+    const [dbuser] = await client<DBUser>('users')
+        .where('pubkey', toBuffer(pubkey))
+        .select();
+
+    if (!dbuser) {
+      //If enabled, fetch from webhook
+      const currentSettings = createSettings();
+      const webhookUser = await this.fetchUserByWebhook(pubkey, currentSettings);
+      if (webhookUser) {
+        console.log(`Received response from webhook`)
+        console.log(`Storing user locally`)
+        const date = new Date();
+        await this.upsert(
+          {
+            pubkey: webhookUser.pubkey,
+            isAdmitted: webhookUser.isAdmitted,
+            balance: BigInt(webhookUser.balance),
+            createdAt: date,
+            tosAcceptedAt: date,
+            updatedAt: date,
+          },
+          //transaction.transaction,
+        )
+        return webhookUser;
+      } else {
+        //No user found
+        //TODO store in cache for temp blocking
+        return
       }
+    } else {
+      console.log('Found user from local db')
+      return fromDBUser(dbuser)
+    }
+
+    const currentSettings = createSettings();
+    const fromWebhookUser = await this.fetchUserByWebhook(pubkey, currentSettings);
+    if (fromWebhookUser) {
+      return fromWebhookUser;
     }
     // No remote pubkey checking enabled, perform local lookup.
     else {
@@ -79,6 +93,7 @@ export class UserRepository implements IUserRepository {
     const row = applySpec<DBUser>({
       pubkey: pipe(prop('pubkey'), toBuffer),
       is_admitted: prop('isAdmitted'),
+      balance: prop('balance'),
       tos_accepted_at: prop('tosAcceptedAt'),
       updated_at: always(date),
       created_at: always(date),
@@ -118,5 +133,145 @@ export class UserRepository implements IUserRepository {
     }
 
     return BigInt(user.balance)
+  }
+
+  protected async fetchUserByWebhook(
+    pubkey: Pubkey, 
+    settings: Settings
+  ): Promise<User | undefined> {
+
+    /*
+      Generates a POST req with body:
+        {
+          pubkey: 'cb46e9...',  //pubkey (hex)
+          minBalance: 500  //mSat min required
+        }
+
+      Expects response:
+      {
+        pubkey: 'cb46e9...',
+        isAdmitted: true,
+        credit: 5000, //in mSats
+        createdAt: 1675727291,
+        updatedAt: 1675727387
+      }
+    */
+    if(!settings.webhooks?.pubkeyChecks || !settings.webhooks?.endpoints?.baseURL || !settings.webhooks?.endpoints?.pubkeyCheck) {
+      return;
+    }
+    if (!process.env.VIDA_API_KEY) {
+      console.log('Unable to find Vida API Key');
+      return;
+    }
+    const url = `${settings.webhooks?.endpoints?.baseURL}${settings.webhooks?.endpoints?.pubkeyCheck}?token=${process.env.VIDA_API_KEY}`;
+    try {
+        // send a POST to the endpoint with the pubKey and minimum balance. endpoint will basically return true/false
+      const body = {
+        pubkey: pubkey,
+        amount: settings.payments?.feeSchedules?.topUp[0].amount || 0
+      }
+      const response = await httpClient.post(url, body, {
+        maxRedirects: 1,
+      })
+      if (response && response.data?.isAdmitted) {
+        return {
+          pubkey: pubkey,
+          isAdmitted: response.data.isAdmitted,
+          balance: BigInt(response.data.balance),
+          createdAt: new Date(response.data.createdAt) || new Date(Date.now()),
+          updatedAt: new Date(response.data.updatedAt) || new Date(Date.now()),
+        }
+      } else {
+        console.log(`Did not receive a response from webhook ep ${url}`)
+        return;
+      }
+
+    } catch (e) {
+      debug(`Unable to fetch remote pubkey from webhook endpoint ${url}`);
+      throw e;
+      return;      
+    }
+
+  }
+
+  public async topUpPubkey(
+    pubkey: Pubkey
+  ): Promise<boolean> {
+
+    /*
+      Generates a POST req with body:
+        {
+          pubkey: 'cb46e9...',  //pubkey (hex)
+          
+        }
+
+      Expects response:
+      {
+        success: true || false
+      }
+    */
+    const settings = createSettings();
+    console.log('Topping up user by webhook');
+    if(!settings.webhooks?.topUps || !settings.webhooks?.endpoints?.baseURL || !settings.webhooks?.endpoints?.topUps) {
+      return false;
+    }
+    if (!process.env.VIDA_API_KEY) {
+      console.log('Unable to find API Key');
+      return false;
+    }
+    const amount = settings.payments?.feeSchedules?.topUp[0].amount || BigInt(0);
+    console.log(`Topping up ${pubkey} by amount ${amount}`)
+
+    const url = `${settings.webhooks?.endpoints?.baseURL}${settings.webhooks?.endpoints?.topUps}?token=${process.env.VIDA_API_KEY}`;
+    try {
+        // send a POST to the endpoint with the pubKey and minimum balance. endpoint will basically return true/false
+      const body = {
+        pubkey: pubkey,
+        amount: amount
+      }
+      const response = await httpClient.post(url, body, {
+        maxRedirects: 1,
+      })
+
+      if (response && response.data?.success) {
+        console.log(`Topped up ${pubkey} successfully`)
+        await this.updateUserBalance(pubkey, amount, 'increment');
+        return true;
+      } else {
+        console.log('Did not receive a response from topup webhook ep')
+        return false;
+      }
+
+    } catch (e) {
+      debug(`Unable to process topup from webhook endpoint ${url}`);
+      throw e;
+      return false;      
+    }
+  }
+
+  public async updateUserBalance(
+    pubkey: Pubkey,
+    amount: bigint,
+    op: string,
+    client: DatabaseClient = this.dbClient
+  ): Promise<number> {
+    debug('upsert: %o', pubkey)
+
+
+    const settings = createSettings();
+    var amountString = '';
+    console.log(`Updating User Balance for ${pubkey} by amount ${amount}`);
+
+    //Supported ops are 'increment' and 'decrement'
+
+    if (op == 'increment') {
+      amountString = `+ ${amount}`; //This is a negative and will subtract
+    } else if (op == 'decrement'){
+      amountString = `- ${amount}`;
+    }
+    const queryRaw = `UPDATE users SET balance = balance ${amountString} WHERE pubkey = '\\x${pubkey}'`;
+    const query = await client.raw(queryRaw);
+
+    return
   }
 }

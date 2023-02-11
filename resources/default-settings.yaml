@@ -1,33 +1,46 @@
 info:
-  relay_url: wss://nostream.your-domain.com
-  name: nostream.your-domain.com
-  description: A nostr relay written in Typescript.
-  pubkey: replace-with-your-pubkey-in-hex
-  contact: operator@your-domain.com
+  relay_url: wss://brandon.fwdnetworks.com
+  name: brandon.fwdnetworks.com
+  description: Vida Nostream Relay.
+  pubkey: 42b3db1ca9f73ea861cca1f5a9f74dadf97b6ff539cdf722ccae16119907dfe6
+  contact: team@vida.live
 payments:
-  enabled: false
-  processor: zebedee
+  enabled: true
+  processor: vida
   feeSchedules:
     admission:
-    - enabled: false
+    - enabled: true
       descripton: Admission fee charged per public key in msats (1000 msats = 1 satoshi)
       amount: 1000000
       whitelists:
         pubkeys:
         - replace-with-your-pubkey-in-hex
+    publication:
+    - enabled: true
+      descripton: Per event fee charged per public key in msats (1000 msats = 1 satoshi)
+      amount: 10000
+      whitelists:
+        pubkeys:
+        - replace-with-your-pubkey-in-hex
+    topUp:
+    - enabled: true
+      descripton: Amount for recharging account in msats (1000 msats = 1 satoshi)
+      amount: 1000000
 webhooks:
   pubkeyChecks: true
-  eventChecks: true
-  eventCallbacks: true
+  topUps: true
+  eventChecks: false
+  eventCallbacks: false
   endpoints:
-    baseURL: https://api.vida.dev/
-    pubkeyCheck: nostream/pubkeyCheck
+    baseURL: https://brandon.fwdnetworks.com/
+    pubkeyCheck: nostream/pubkeyAdmit
     eventCheck: nostream/eventCheck
+    topUps: nostream/topUp
     eventCallback: nostream/eventCallback
 paymentsProcessors:
-  zebedee:
-    baseURL: https://api.zebedee.io/
-    callbackBaseURL: https://nostream.your-domain.com/callbacks/zebedee
+  vida:
+    baseURL: https://api.vida.dev/
+    callbackBaseURL: https://brandon.fwdnetworks.com/callbacks/zebedee
     ipWhitelist:
       - "3.225.112.64"
       - "::ffff:3.225.112.64"
@@ -69,6 +82,7 @@ limits:
       blacklist: []
     pubkey:
       minBalance: 0
+      topUp: 1000000
       minLeadingZeroBits: 0
       whitelist: []
       blacklist: []

@@ -2,6 +2,8 @@ services:
   nostream:
     build: .
     container_name: nostream
+    env_file:
+      - local.env
     environment:
       SECRET: changeme
       RELAY_PORT: 8008

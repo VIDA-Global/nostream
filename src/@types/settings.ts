@@ -27,7 +27,8 @@ export interface EventIdLimits {
 }
 
 export interface PubkeyLimits {
-  minBalance: bigint
+  minBalance: BigInt
+  topUp: BigInt
   minLeadingZeroBits: number
   whitelist?: Pubkey[]
   blacklist?: Pubkey[]
@@ -134,6 +135,7 @@ export interface FeeSchedule {
 export interface FeeSchedules {
   admission: FeeSchedule[]
   publication: FeeSchedule[]
+  topUp: FeeSchedule[]
 }
 
 export interface Payments {
@@ -170,6 +172,22 @@ export interface Mirroring {
   static?: Mirror[]
 }
 
+export interface WebhookEndpoints {
+  baseURL: string
+  pubkeyCheck?: string
+  eventCheck?: string
+  eventCallback?: string
+  topUps?: string
+}
+
+export interface Webhooks {
+  pubkeyChecks: boolean
+  topUps: boolean
+  eventChecks: boolean
+  eventCallbacks: boolean
+  endpoints: WebhookEndpoints
+}
+
 export interface Settings {
   info: Info
   payments?: Payments
@@ -178,4 +196,5 @@ export interface Settings {
   workers?: Worker
   limits?: Limits
   mirroring?: Mirroring
+  webhooks? : Webhooks
 }

@@ -40,4 +40,6 @@ export interface IUserRepository {
   findByPubkey(pubkey: Pubkey, client?: DatabaseClient): Promise<User | undefined>
   upsert(user: Partial<User>, client?: DatabaseClient): Promise<number>
   getBalanceByPubkey(pubkey: Pubkey, client?: DatabaseClient): Promise<bigint>
+  updateUserBalance(pubkey: Pubkey, amount: BigInt, op: string, client?: DatabaseClient): Promise<number>
+  topUpPubkey(pubkey: Pubkey): Promise<boolean>
 }
