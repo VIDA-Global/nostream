@@ -48,7 +48,7 @@ network:
   maxPayloadSize: 524288
   remoteIpHeader: x-forwarded-for
 workers:
-  count: 0
+  count: 16
 mirroring:
   static: []
 limits:
