@@ -98,7 +98,7 @@ export class EventMessageHandler implements IMessageHandler {
       console.log('Charging a publication fee')
       var publicationFee = this.settings().payments?.feeSchedules?.publication[0].amount;
       console.log(`Publication Fee is ${publicationFee}`)
-      await this.userRepository.updateUserBalance(event.pubkey, publicationFee, 'decrement')
+      await this.userRepository.decrementUserBalance(event.pubkey, publicationFee)
     } 
 
     try {

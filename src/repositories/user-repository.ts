@@ -9,13 +9,15 @@ import { IUserRepository } from '../@types/repositories'
 import { Settings } from '../@types/settings'
 import { createSettings } from '../factories/settings-factory'
 import httpClient, { CreateAxiosDefaults } from 'axios'
+import { getCacheClient } from '../cache/client'
 
 const debug = createLogger('user-repository')
 
 export class UserRepository implements IUserRepository {
+  private readonly cacheClient = getCacheClient();
+
   public constructor(
     private readonly dbClient: DatabaseClient,
-    //private httpClient?: AxiosInstance,
   ) { }
 
   public async findByPubkey(
@@ -24,9 +26,13 @@ export class UserRepository implements IUserRepository {
   ): Promise<User | undefined> {
     debug('find by pubkey: %s', pubkey)
 
-    // If remote pubkey checking enabled, use the webhook settings
-    console.log(`Checking for ${pubkey}`)
-    //console.log(this.settings())
+    //Check cache for blocked pubkey
+    console.log(`Checking is-blocked cache for pubkey ${pubkey}`);
+    const blocked = await this.cacheClient.exists(`${pubkey}:is-blocked`);
+    if (blocked) {
+      console.log(`PubKey ${pubkey} is blocked`);
+      return;
+    }
 
     //Check if user is stored locally already
     const [dbuser] = await client<DBUser>('users')
@@ -55,29 +61,14 @@ export class UserRepository implements IUserRepository {
         return webhookUser;
       } else {
         //No user found
-        //TODO store in cache for temp blocking
+        //Store in cache for temp blocking so we don't keep hitting api/db
+        console.log(`Setting block in cache for ${pubkey}`)
+        await this.cacheClient.set(`${pubkey}:is-blocked`, `true`);
+        await this.cacheClient.expire(`${pubkey}:is-blocked`, 60);
         return
       }
     } else {
       console.log('Found user from local db')
-      return fromDBUser(dbuser)
-    }
-
-    const currentSettings = createSettings();
-    const fromWebhookUser = await this.fetchUserByWebhook(pubkey, currentSettings);
-    if (fromWebhookUser) {
-      return fromWebhookUser;
-    }
-    // No remote pubkey checking enabled, perform local lookup.
-    else {
-      const [dbuser] = await client<DBUser>('users')
-        .where('pubkey', toBuffer(pubkey))
-        .select()
-
-      if (!dbuser) {
-        return
-      }
-
       return fromDBUser(dbuser)
     }
   }
@@ -181,10 +172,12 @@ export class UserRepository implements IUserRepository {
           createdAt: new Date(response.data.createdAt) || new Date(Date.now()),
           updatedAt: new Date(response.data.updatedAt) || new Date(Date.now()),
         }
-      } else {
-        console.log(`Did not receive a response from webhook ep ${url}`)
+      } else if (response && !response.data?.isAdmitted) {
+        console.log(`Received negative isAdmitted response from webhook. Rejecting.`)
         return;
-      }
+      } 
+      console.log(`Didn't receive response from webhook for isAdmitted check`);
+      return;
 
     } catch (e) {
       debug(`Unable to fetch remote pubkey from webhook endpoint ${url}`);
@@ -235,43 +228,46 @@ export class UserRepository implements IUserRepository {
 
       if (response && response.data?.success) {
         console.log(`Topped up ${pubkey} successfully`)
-        await this.updateUserBalance(pubkey, amount, 'increment');
+        await this.incrementUserBalance(pubkey, amount);
         return true;
       } else {
-        console.log('Did not receive a response from topup webhook ep')
+        console.log('Did not receive a response or success from topup webhook ep')
         return false;
       }
 
     } catch (e) {
-      debug(`Unable to process topup from webhook endpoint ${url}`);
+      debug(`Unable to process topup from webhook endpoint`);
       throw e;
       return false;      
     }
   }
 
-  public async updateUserBalance(
+  public async incrementUserBalance(
     pubkey: Pubkey,
     amount: bigint,
-    op: string,
     client: DatabaseClient = this.dbClient
   ): Promise<number> {
-    debug('upsert: %o', pubkey)
-
-
+    debug('incrementUserBalance: %o', pubkey)
     const settings = createSettings();
-    var amountString = '';
-    console.log(`Updating User Balance for ${pubkey} by amount ${amount}`);
-
-    //Supported ops are 'increment' and 'decrement'
-
-    if (op == 'increment') {
-      amountString = `+ ${amount}`; //This is a negative and will subtract
-    } else if (op == 'decrement'){
-      amountString = `- ${amount}`;
-    }
-    const queryRaw = `UPDATE users SET balance = balance ${amountString} WHERE pubkey = '\\x${pubkey}'`;
+    console.log(`Incrementing User Balance for ${pubkey} by amount ${amount}`);
+    const queryRaw = `UPDATE users SET balance = balance + ${amount} WHERE pubkey = '\\x${pubkey}'`;
     const query = await client.raw(queryRaw);
 
     return
   }
+
+  public async decrementUserBalance(
+    pubkey: Pubkey,
+    amount: bigint,
+    client: DatabaseClient = this.dbClient
+  ): Promise<number> {
+    debug('decrementUserBalance: %o', pubkey)
+    const settings = createSettings();
+    console.log(`Decrementing User Balance for ${pubkey} by amount ${amount}`);
+    const queryRaw = `UPDATE users SET balance = balance - ${amount} WHERE pubkey = '\\x${pubkey}'`;
+    const query = await client.raw(queryRaw);
+
+    return
+  }
+
 }
