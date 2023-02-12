@@ -6,12 +6,14 @@ import { getTermsRequestHandler } from '../handlers/request-handlers/get-terms-r
 import invoiceRouter from './invoices'
 import { rateLimiterMiddleware } from '../handlers/request-handlers/rate-limiter-middleware'
 import { rootRequestHandler } from '../handlers/request-handlers/root-request-handler'
+import { userRequestHandler } from '../handlers/request-handlers/user-request-handler'
 
 const router = express.Router()
 
 router.get('/', rootRequestHandler)
 router.get('/healthz', getHealthRequestHandler)
 router.get('/terms', getTermsRequestHandler)
+router.get('/balance', userRequestHandler)
 
 router.use('/invoices', rateLimiterMiddleware, invoiceRouter)
 router.use('/callbacks', rateLimiterMiddleware, callbacksRouter)
