@@ -40,7 +40,7 @@ webhooks:
 paymentsProcessors:
   vida:
     baseURL: https://api.vida.dev/
-    callbackBaseURL: https://api.vida.dev/callbacks/zebedee
+    callbackBaseURL: https://nostr01.vida.dev/callbacks/zebedee
     ipWhitelist:
       - "3.225.112.64"
       - "::ffff:3.225.112.64"
@@ -170,12 +170,12 @@ limits:
       maxFilters: 10
   message:
     rateLimits:
-    - description: 240 raw messages/min
+    - description: 600 raw messages/min
       period: 60000
-      rate: 240
-    - description: 3600 raw messages/hour
+      rate: 600
+    - description: 36000 raw messages/hour
       period: 3600000
-      rate: 4800
+      rate: 36000
     ipWhitelist:
     - "::1"
     - "10.10.10.1"
