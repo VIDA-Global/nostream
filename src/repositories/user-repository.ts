@@ -15,6 +15,7 @@ const debug = createLogger('user-repository')
 
 export class UserRepository implements IUserRepository {
   private readonly cacheClient = getCacheClient();
+  private readonly settings = createSettings();
 
   public constructor(
     private readonly dbClient: DatabaseClient,
@@ -41,8 +42,7 @@ export class UserRepository implements IUserRepository {
 
     if (!dbuser) {
       //If enabled, fetch from webhook
-      const currentSettings = createSettings();
-      const webhookUser = await this.fetchUserByWebhook(pubkey, currentSettings);
+      const webhookUser = await this.fetchUserByWebhook(pubkey);
       if (webhookUser) {
         console.log(`Received response from webhook`)
         console.log(`Storing user locally`)
@@ -127,15 +127,14 @@ export class UserRepository implements IUserRepository {
   }
 
   protected async fetchUserByWebhook(
-    pubkey: Pubkey, 
-    settings: Settings
+    pubkey: Pubkey
   ): Promise<User | undefined> {
 
     /*
       Generates a POST req with body:
         {
           pubkey: 'cb46e9...',  //pubkey (hex)
-          minBalance: 500  //mSat min required
+          amount: 500  //mSat min required
         }
 
       Expects response:
@@ -147,19 +146,19 @@ export class UserRepository implements IUserRepository {
         updatedAt: 1675727387
       }
     */
-    if(!settings.webhooks?.pubkeyChecks || !settings.webhooks?.endpoints?.baseURL || !settings.webhooks?.endpoints?.pubkeyCheck) {
+    if(!this.settings.webhooks?.pubkeyChecks || !this.settings.webhooks?.endpoints?.baseURL || !this.settings.webhooks?.endpoints?.pubkeyCheck) {
       return;
     }
     if (!process.env.VIDA_API_KEY) {
       console.log('Unable to find Vida API Key');
       return;
     }
-    const url = `${settings.webhooks?.endpoints?.baseURL}${settings.webhooks?.endpoints?.pubkeyCheck}?token=${process.env.VIDA_API_KEY}`;
+    const url = `${this.settings.webhooks?.endpoints?.baseURL}${this.settings.webhooks?.endpoints?.pubkeyCheck}?token=${process.env.VIDA_API_KEY}`;
     try {
         // send a POST to the endpoint with the pubKey and minimum balance. endpoint will basically return true/false
       const body = {
         pubkey: pubkey,
-        amount: settings.payments?.feeSchedules?.topUp[0].amount || 0
+        amount: this.settings.payments?.feeSchedules?.topUp[0].amount || 0
       }
       const response = await httpClient.post(url, body, {
         maxRedirects: 1,
@@ -203,19 +202,18 @@ export class UserRepository implements IUserRepository {
         success: true || false
       }
     */
-    const settings = createSettings();
     console.log('Topping up user by webhook');
-    if(!settings.webhooks?.topUps || !settings.webhooks?.endpoints?.baseURL || !settings.webhooks?.endpoints?.topUps) {
+    if(!this.settings.webhooks?.topUps || !this.settings.webhooks?.endpoints?.baseURL || !this.settings.webhooks?.endpoints?.topUps) {
       return false;
     }
     if (!process.env.VIDA_API_KEY) {
       console.log('Unable to find API Key');
       return false;
     }
-    const amount = settings.payments?.feeSchedules?.topUp[0].amount || BigInt(0);
+    const amount = this.settings.payments?.feeSchedules?.topUp[0].amount || BigInt(0);
     console.log(`Topping up ${pubkey} by amount ${amount}`)
 
-    const url = `${settings.webhooks?.endpoints?.baseURL}${settings.webhooks?.endpoints?.topUps}?token=${process.env.VIDA_API_KEY}`;
+    const url = `${this.settings.webhooks?.endpoints?.baseURL}${this.settings.webhooks?.endpoints?.topUps}?token=${process.env.VIDA_API_KEY}`;
     try {
         // send a POST to the endpoint with the pubKey and minimum balance. endpoint will basically return true/false
       const body = {
@@ -248,7 +246,6 @@ export class UserRepository implements IUserRepository {
     client: DatabaseClient = this.dbClient
   ): Promise<number> {
     debug('incrementUserBalance: %o', pubkey)
-    const settings = createSettings();
     console.log(`Incrementing User Balance for ${pubkey} by amount ${amount}`);
     const queryRaw = `UPDATE users SET balance = balance + ${amount} WHERE pubkey = '\\x${pubkey}'`;
     const query = await client.raw(queryRaw);
@@ -262,7 +259,6 @@ export class UserRepository implements IUserRepository {
     client: DatabaseClient = this.dbClient
   ): Promise<number> {
     debug('decrementUserBalance: %o', pubkey)
-    const settings = createSettings();
     console.log(`Decrementing User Balance for ${pubkey} by amount ${amount}`);
     const queryRaw = `UPDATE users SET balance = balance - ${amount} WHERE pubkey = '\\x${pubkey}'`;
     const query = await client.raw(queryRaw);
