@@ -15,7 +15,13 @@ export const rootRequestHandler = (request: Request, response: Response, next: N
 
     const paymentsUrl = new URL(relay_url)
     paymentsUrl.protocol = paymentsUrl.protocol === 'wss:' ? 'https:' : 'http:'
-    paymentsUrl.pathname = '/invoices'
+
+    if (settings.info?.relay_root_redirect_url) {
+      return response
+        .redirect(301, settings.info?.relay_root_redirect_url);
+    } else {
+      paymentsUrl.pathname = '/invoices'
+    }
 
     const relayInformationDocument = {
       name,
@@ -66,6 +72,10 @@ export const rootRequestHandler = (request: Request, response: Response, next: N
   const admissionFeeEnabled = path(['payments','feeSchedules','admission', '0', 'enabled'])(settings)
 
   if (admissionFeeEnabled) {
+    if (settings.info?.relay_root_redirect_url) {
+      return response
+        .redirect(301, settings.info?.relay_root_redirect_url);
+    } 
     response.redirect(301, '/invoices')
   } else {
     response.status(200).setHeader('content-type', 'text/plain; charset=utf8').send('Please use a Nostr client to connect.')

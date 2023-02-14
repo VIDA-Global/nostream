@@ -5,6 +5,7 @@ import { SubscriptionFilter } from './subscription'
 
 export interface Info {
   relay_url: string
+  relay_root_redirect_url: string
   name: string
   description: string
   pubkey: string
