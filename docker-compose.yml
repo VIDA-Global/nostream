@@ -5,7 +5,6 @@ services:
     env_file:
       - local.env
     environment:
-      SECRET: ${SECRET}
       RELAY_PORT: 8008
       # Master
       NOSTR_CONFIG_DIR: /home/node/.nostr
