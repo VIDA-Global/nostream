@@ -2,7 +2,7 @@ info:
   relay_url: wss://nostr01.vida.dev
   relay_root_redirect_url: https://vida.page/nostr
   name: nostr01.vida.dev  
-  description: Vida Nostream Relay.
+  description: Vida Nostream Relay
   pubkey: 42b3db1ca9f73ea861cca1f5a9f74dadf97b6ff539cdf722ccae16119907dfe6
   contact: team@vida.live
 payments:
