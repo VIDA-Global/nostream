@@ -35,11 +35,6 @@ export class UserRepository implements IUserRepository {
       console.log(`PubKey ${pubkey} is blocked`);
       return;
     }
-    // No remote pubkey checking enabled, perform local lookup.
-    else {
-      const [dbuser] = await client<DBUser>('users')
-        .where('pubkey', toBuffer(pubkey))
-        .select()
 
     //Check if user is stored locally already
     const [dbuser] = await client<DBUser>('users')
@@ -140,11 +135,7 @@ export class UserRepository implements IUserRepository {
       Generates a POST req with body:
         {
           pubkey: 'cb46e9...',  //pubkey (hex)
-<<<<<<< HEAD
           amount: 500  //mSat min required
-=======
-          minBalance: 500  //mSat min required
->>>>>>> 33c5b8c (Adding topups, userbalance updates, fetch user from webhook, store user locally, adding per event publication fee charges)
         }
 
       Expects response:
