@@ -15,13 +15,9 @@ export const rootRequestHandler = (request: Request, response: Response, next: N
 
     const paymentsUrl = new URL(relay_url)
     paymentsUrl.protocol = paymentsUrl.protocol === 'wss:' ? 'https:' : 'http:'
+    paymentsUrl.pathname = '/invoices'
 
-    if (settings.info?.relay_root_redirect_url) {
-      return response
-        .redirect(301, settings.info?.relay_root_redirect_url);
-    } else {
-      paymentsUrl.pathname = '/invoices'
-    }
+    const signUpUrl = 'https://vida.page/nostr';
 
     const relayInformationDocument = {
       name,
@@ -45,7 +41,7 @@ export const rootRequestHandler = (request: Request, response: Response, next: N
             auth_required: false,
             payment_required: settings.payments?.enabled,
       },
-      payments_url: paymentsUrl.toString(),
+      payments_url: signUpUrl,
       fees: Object
         .getOwnPropertyNames(settings.payments.feeSchedules)
         .reduce((prev, feeName) => {
