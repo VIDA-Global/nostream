@@ -28,10 +28,6 @@ payments:
       whitelists:
         pubkeys:
         - "42b3db1ca9f73ea861cca1f5a9f74dadf97b6ff539cdf722ccae16119907dfe6"
-    topUp:
-    - enabled: true
-      descripton: Amount for recharging account in msats (1000 msats = 1 satoshi)
-      amount: 1000000
 webhooks:
   pubkeyChecks: true
   topUps: true

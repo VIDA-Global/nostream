@@ -136,7 +136,6 @@ export interface FeeSchedule {
 export interface FeeSchedules {
   admission: FeeSchedule[]
   publication: FeeSchedule[]
-  topUp: FeeSchedule[]
 }
 
 export interface Payments {

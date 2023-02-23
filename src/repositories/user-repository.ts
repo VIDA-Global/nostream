@@ -159,7 +159,7 @@ export class UserRepository implements IUserRepository {
         // send a POST to the endpoint with the pubKey and minimum balance. endpoint will basically return true/false
       const body = {
         pubkey: pubkey,
-        amount: this.settings.payments?.feeSchedules?.topUp[0].amount || 0
+        amount: this.settings.payments?.feeSchedules?.admission[0].amount || 0
       }
       const response = await httpClient.post(url, body, {
         maxRedirects: 1,
@@ -211,7 +211,7 @@ export class UserRepository implements IUserRepository {
       console.log('Unable to find API Key');
       return false;
     }
-    const amount = this.settings.payments?.feeSchedules?.topUp[0].amount || BigInt(0);
+    const amount = this.settings.payments?.feeSchedules?.admission[0].amount || BigInt(0);
     console.log(`Topping up ${pubkey} by amount ${amount}`)
 
     const url = `${this.settings.webhooks?.endpoints?.baseURL}${this.settings.webhooks?.endpoints?.topUps}?token=${process.env.VIDA_API_KEY}`;

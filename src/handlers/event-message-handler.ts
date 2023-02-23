@@ -314,7 +314,7 @@ export class EventMessageHandler implements IMessageHandler {
     }
 
     if (currentSettings.payments?.feeSchedules?.publication[0].enabled && user.balance < currentSettings.payments?.feeSchedules?.publication[0].amount) {
-      if (currentSettings.payments?.feeSchedules?.topUp[0].enabled) {
+      if (currentSettings.webhooks?.topUps) {
         var topUp = await this.userRepository.topUpPubkey(event.pubkey);
         if (topUp) {
           //Successfully topped up key
