@@ -49,9 +49,14 @@ paymentsProcessors:
   lnbits:
     baseURL: https://lnbits.your-domain.com/
     callbackBaseURL: https://nostream.your-domain.com/callbacks/lnbits
+  lnurl:
+    invoiceURL: https://getalby.com/lnurlp/your-username
 network:
   maxPayloadSize: 524288
+  # Comment the next line if using CloudFlare proxy
   remoteIpHeader: x-forwarded-for
+  # Uncomment the next line if using CloudFlare proxy
+  # remoteIpHeader: cf-connecting-ip
 workers:
   count: 16
 mirroring:
@@ -60,9 +65,9 @@ limits:
   invoice:
     rateLimits:
     - period: 60000
-      rate: 6
+      rate: 12
     - period: 3600000
-      rate: 16
+      rate: 30
     ipWhitelist:
     - "::1"
     - "10.10.10.1"
@@ -73,8 +78,6 @@ limits:
       rate: 12
     - period: 60000
       rate: 48
-    - period: 3600000
-      rate: 300
     ipWhitelist:
     - "::1"
     - "10.10.10.1"
@@ -101,14 +104,14 @@ limits:
         - 10
       - - 40
         - 49
-      maxLength: 65536
+      maxLength: 102400
     - description: 96 KB for event kind ranges 11-39 and 50-max
       kinds:
       - - 11
         - 39
       - - 50
         - 9007199254740991
-      maxLength: 98304
+      maxLength: 102400
     rateLimits:
     - description: 6 events/min for event kinds 0, 3, 40 and 41
       kinds:
@@ -126,14 +129,6 @@ limits:
       - 42
       period: 60000
       rate: 12
-    - description: 360 events/hour for event kinds 1, 2, 4 and 42
-      kinds:
-      - 1
-      - 2
-      - 4
-      - 42
-      period: 3600000
-      rate: 360
     - description: 30 events/min for event kind ranges 5-7 and 43-49
       kinds:
       - - 5
@@ -160,9 +155,6 @@ limits:
     - description: 720 events/hour for all events
       period: 3600000
       rate: 720
-    - description: 2880 events/day for all events
-      period: 86400000
-      rate: 2880
     whitelists:
       pubkeys: []
       ipAddresses:
@@ -173,6 +165,10 @@ limits:
     subscription:
       maxSubscriptions: 10
       maxFilters: 10
+      maxFilterValues: 2500
+      maxSubscriptionIdLength: 256
+      maxLimit: 5000
+      minPrefixLength: 4
   message:
     rateLimits:
     - description: 600 raw messages/min

@@ -136,7 +136,12 @@ export class PostInvoiceController implements IController {
     }
 
     let invoice: Invoice
-    const amount = admissionFee.reduce((sum, fee) => sum + BigInt(fee.amount), 0n)
+    const amount = admissionFee.reduce((sum, fee) => {
+      return fee.enabled && !fee.whitelists?.pubkeys?.includes(pubkey)
+        ? BigInt(fee.amount) + sum
+        : sum
+    }, 0n)
+
     try {
       const description = `${relayName} Admission Fee for ${toBech32('npub')(pubkey)}`
 
@@ -145,8 +150,6 @@ export class PostInvoiceController implements IController {
         amount,
         description,
       )
-
-      await this.paymentsService.sendNewInvoiceNotification(invoice)
     } catch (error) {
       console.error('Unable to create invoice. Reason:', error)
       response
@@ -165,7 +168,7 @@ export class PostInvoiceController implements IController {
       relay_url: relayUrl,
       pubkey,
       relay_pubkey: relayPubkey,
-      expires_at: invoice.expiresAt?.toISOString(),
+      expires_at: invoice.expiresAt?.toISOString() ?? '',
       invoice: invoice.bolt11,
       amount: amount / 1000n,
     }

@@ -1,17 +1,16 @@
-import { andThen, pipe } from 'ramda'
-import { broadcastEvent, encryptKind4Event, getPublicKey, getRelayPrivateKey, identifyEvent, signEvent } from '../utils/event'
+import { andThen, otherwise, pipe } from 'ramda'
+import { broadcastEvent, getPublicKey, getRelayPrivateKey, identifyEvent, signEvent } from '../utils/event'
 import { DatabaseClient, Pubkey } from '../@types/base'
 import { FeeSchedule, Settings } from '../@types/settings'
 import { IEventRepository, IInvoiceRepository, IUserRepository } from '../@types/repositories'
 import { Invoice, InvoiceStatus, InvoiceUnit } from '../@types/invoice'
 
+import { Event, ExpiringEvent, UnidentifiedEvent } from '../@types/event'
+import { EventExpirationTimeMetadataKey, EventKinds, EventTags } from '../constants/base'
 import { createLogger } from '../factories/logger-factory'
-import { EventKinds } from '../constants/base'
 import { IPaymentsProcessor } from '../@types/clients'
 import { IPaymentsService } from '../@types/services'
-import { toBech32 } from '../utils/transform'
 import { Transaction } from '../database/transaction'
-import { UnidentifiedEvent } from '../@types/event'
 
 const debug = createLogger('payments-service')
 
@@ -36,10 +35,12 @@ export class PaymentsService implements IPaymentsService {
     }
   }
 
-  public async getInvoiceFromPaymentsProcessor(invoiceId: string): Promise<Invoice> {
-    debug('get invoice %s from payment processor', invoiceId)
+  public async getInvoiceFromPaymentsProcessor(invoice: Invoice): Promise<Partial<Invoice>> {
+    debug('get invoice %s from payment processor', invoice.id)
     try {
-      return await this.paymentsProcessor.getInvoice(invoiceId)
+      return await this.paymentsProcessor.getInvoice(
+        this.settings().payments?.processor === 'lnurl' ? invoice : invoice.id
+      )
     } catch (error) {
       console.log('Unable to get invoice from payments processor. Reason:', error)
 
@@ -52,7 +53,7 @@ export class PaymentsService implements IPaymentsService {
     amount: bigint,
     description: string,
   ): Promise<Invoice> {
-    debug('create invoice for %s for %s: %d', pubkey, amount.toString(), description)
+    debug('create invoice for %s for %s: %s', pubkey, amount.toString(), description)
     const transaction = new Transaction(this.dbClient)
 
     try {
@@ -82,6 +83,7 @@ export class PaymentsService implements IPaymentsService {
           expiresAt: invoiceResponse.expiresAt,
           updatedAt: date,
           createdAt: date,
+          verifyURL: invoiceResponse.verifyURL,
         },
         transaction.transaction,
       )
@@ -99,6 +101,7 @@ export class PaymentsService implements IPaymentsService {
         expiresAt: invoiceResponse.expiresAt,
         updatedAt: date,
         createdAt: invoiceResponse.createdAt,
+        verifyURL: invoiceResponse.verifyURL,
       }
     } catch (error) {
       await transaction.rollback()
@@ -108,7 +111,7 @@ export class PaymentsService implements IPaymentsService {
     }
   }
 
-  public async updateInvoice(invoice: Invoice): Promise<void> {
+  public async updateInvoice(invoice: Partial<Invoice>): Promise<void> {
     debug('update invoice %s: %o', invoice.id, invoice)
     try {
       await this.invoiceRepository.upsert({
@@ -122,6 +125,21 @@ export class PaymentsService implements IPaymentsService {
         expiresAt: invoice.expiresAt,
         updatedAt: new Date(),
         createdAt: invoice.createdAt,
+      })
+    } catch (error) {
+      console.error('Unable to update invoice. Reason:', error)
+      throw error
+    }
+  }
+
+  public async updateInvoiceStatus(invoice: Partial<Invoice>): Promise<void> {
+    debug('update invoice %s: %o', invoice.id, invoice)
+    try {
+      const fullInvoice = await this.invoiceRepository.findById(invoice.id)
+      await this.invoiceRepository.upsert({
+        ...fullInvoice,
+        status: invoice.status,
+        updatedAt: new Date(),
       })
     } catch (error) {
       console.error('Unable to update invoice. Reason:', error)
@@ -270,7 +288,6 @@ ${invoice.bolt11}`,
     const {
       info: {
         relay_url: relayUrl,
-        name: relayName,
       },
     } = currentSettings
 
@@ -290,31 +307,36 @@ ${invoice.bolt11}`,
       unit = InvoiceUnit.SATS
     }
 
-    const url = new URL(relayUrl)
+    const now = new Date()
+    const expiration = new Date(now.getFullYear(), now.getMonth() + 1, now.getDate())
 
-    const unsignedInvoiceEvent: UnidentifiedEvent = {
+    const unsignedInvoiceEvent: UnidentifiedEvent & Pick<ExpiringEvent, typeof EventExpirationTimeMetadataKey> = {
       pubkey: relayPubkey,
-      kind: EventKinds.ENCRYPTED_DIRECT_MESSAGE,
-      created_at: Math.floor(invoice.createdAt.getTime() / 1000),
-      content: `🧾 Admission Fee Invoice Paid for ${relayPubkey}@${url.hostname} (${relayName})
-
-Amount received: ${amount.toString()} ${unit}
-
-Thanks!`,
+      kind: EventKinds.INVOICE_UPDATE,
+      created_at: Math.floor(now.getTime() / 1000),
+      content: `Invoice paid: ${amount.toString()} ${unit}`,
       tags: [
-        ['p', invoice.pubkey],
-        ['c', invoice.id],
+        [EventTags.Pubkey, invoice.pubkey],
+        [EventTags.Invoice, invoice.bolt11],
+        [EventTags.Expiration, Math.floor(expiration.getTime() / 1000).toString()],
       ],
+      [EventExpirationTimeMetadataKey]: expiration.getTime() / 1000,
     }
 
-    const persistEvent = this.eventRepository.create.bind(this.eventRepository)
+    const persistEvent = async (event: Event) => {
+      await this.eventRepository.create(event)
+
+      return event
+    }
+
+    const logError = (error: Error) => console.error('Unable to send notification', error)
 
     await pipe(
       identifyEvent,
-      andThen(encryptKind4Event(relayPrivkey, invoice.pubkey)),
       andThen(signEvent(relayPrivkey)),
-      andThen(broadcastEvent),
       andThen(persistEvent),
+      andThen(broadcastEvent),
+      otherwise(logError),
     )(unsignedInvoiceEvent)
   }
 }

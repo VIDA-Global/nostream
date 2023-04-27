@@ -16,7 +16,9 @@ export class DefaultEventStrategy implements IEventStrategy<Event, Promise<void>
 
   public async execute(event: Event): Promise<void> {
     debug('received event: %o', event)
+    console.log(event)
     const count = await this.eventRepository.create(event)
+    console.log(WebSocketAdapterEvent.Message)
     this.webSocket.emit(WebSocketAdapterEvent.Message, createCommandResult(event.id, true, (count) ? '' : 'duplicate:'))
 
     if (count) {
