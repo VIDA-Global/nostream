@@ -34,14 +34,14 @@ webhooks:
   eventChecks: false
   eventCallbacks: false
   endpoints:
-    baseURL: https://brandon.fwdnetworks.com/
+    baseURL: https://api.vida.dev/
     pubkeyCheck: nostream/pubkeyAdmit
     eventCheck: nostream/eventCheck
     topUps: nostream/topUp
     eventCallback: nostream/eventCallback
 paymentsProcessors:
   vida:
-    baseURL: https://brandon.fwdnetworks.com/
+    baseURL: https://api.vida.dev/
     callbackBaseURL: https://nostr01.vida.dev/callbacks/zebedee
     ipWhitelist:
       - "3.225.112.64"
