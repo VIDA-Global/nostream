@@ -16,8 +16,11 @@ export const rootRequestHandler = (request: Request, response: Response, next: N
     const paymentsUrl = new URL(relay_url)
     paymentsUrl.protocol = paymentsUrl.protocol === 'wss:' ? 'https:' : 'http:'
     paymentsUrl.pathname = '/invoices'
+    
+    const content = settings.limits?.event?.content
 
     const signUpUrl = 'https://vida.page/nostr';
+
 
     const relayInformationDocument = {
       name,

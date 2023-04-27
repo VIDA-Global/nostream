@@ -219,68 +219,6 @@ export class PaymentsService implements IPaymentsService {
     }
   }
 
-  public async sendNewInvoiceNotification(invoice: Invoice): Promise<void> {
-    debug('invoice created notification %s: %o', invoice.id, invoice)
-    const currentSettings = this.settings()
-
-    const {
-      info: {
-        relay_url: relayUrl,
-        name: relayName,
-      },
-    } = currentSettings
-
-    const relayPrivkey = getRelayPrivateKey(relayUrl)
-    const relayPubkey = getPublicKey(relayPrivkey)
-
-    let unit: string = invoice.unit
-    let amount: bigint = invoice.amountRequested
-    if (invoice.unit === InvoiceUnit.MSATS) {
-      amount /= 1000n
-      unit = 'sats'
-    }
-
-    const url = new URL(relayUrl)
-
-    const terms = new URL(relayUrl)
-    terms.protocol = ['https', 'wss'].includes(url.protocol)
-      ? 'https'
-      : 'http'
-    terms.pathname += 'terms'
-
-    const unsignedInvoiceEvent: UnidentifiedEvent = {
-      pubkey: relayPubkey,
-      kind: EventKinds.ENCRYPTED_DIRECT_MESSAGE,
-      created_at: Math.floor(invoice.createdAt.getTime() / 1000),
-      content: `From: ${toBech32('npub')(relayPubkey)}@${url.hostname} (${relayName})
-To: ${toBech32('npub')(invoice.pubkey)}@${url.hostname}
-🧾 Admission Fee Invoice
-
-Amount: ${amount.toString()} ${unit}
-
-⚠️ By paying this invoice, you confirm that you have read and agree to the Terms of Service:
-${terms.toString()}
-${invoice.expiresAt ? `
-⏳ Expires at ${invoice.expiresAt.toISOString()}` : ''}
-
-${invoice.bolt11}`,
-      tags: [
-        ['p', invoice.pubkey],
-        ['bolt11', invoice.bolt11],
-      ],
-    }
-
-    const persistEvent = this.eventRepository.create.bind(this.eventRepository)
-
-    await pipe(
-      identifyEvent,
-      andThen(encryptKind4Event(relayPrivkey, invoice.pubkey)),
-      andThen(signEvent(relayPrivkey)),
-      andThen(broadcastEvent),
-      andThen(persistEvent),
-    )(unsignedInvoiceEvent)
-  }
-
   public async sendInvoiceUpdateNotification(invoice: Invoice): Promise<void> {
     debug('invoice updated notification %s: %o', invoice.id, invoice)
     const currentSettings = this.settings()
